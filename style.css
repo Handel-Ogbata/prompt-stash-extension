@@ -4,21 +4,308 @@ body {
   margin: 0;
   padding: 10px;
 }
+
 .container h2 {
   margin: 0 0 8px 0;
   font-size: 16px;
 }
+
+.auth-status {
+  margin-bottom: 15px;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+#auth-loading {
+  color: #0066cc;
+  background: #e6f3ff;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+#auth-error {
+  color: #d32f2f;
+  background: #ffebee;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+#auth-success {
+  color: #2e7d32;
+  background: #e8f5e8;
+  padding: 8px;
+  border-radius: 4px;
+}
+
 #editor input,
 #editor textarea {
   width: 100%;
   margin-bottom: 6px;
+  padding: 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-sizing: border-box;
 }
+
+#editor textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+#editor button,
+.controls button {
+  background: #0066cc;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+#editor button:hover,
+.controls button:hover {
+  background: #0052a3;
+}
+
+/* Search styles */
+.search-container {
+  margin-bottom: 15px;
+}
+
+.search-container input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font-size: 14px;
+  background-color: #fff;
+}
+
+.search-container input:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.2);
+}
+
+.search-container input::placeholder {
+  color: #999;
+}
+
 #list .card {
   border: 1px solid #ddd;
   padding: 8px;
   margin-bottom: 6px;
   border-radius: 6px;
+  background: #f9f9f9;
 }
+
+#list .card strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #333;
+}
+
+#list .card pre {
+  background: #f5f5f5;
+  padding: 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 4px 0;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+.tags {
+  margin: 4px 0;
+}
+
+.tag {
+  display: inline-block;
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  margin-right: 4px;
+  margin-bottom: 2px;
+}
+
+.actions {
+  margin-top: 6px;
+}
+
 .actions button {
   margin-right: 6px;
+  background: #666;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.actions button:hover {
+  background: #555;
+}
+
+.actions button.copy {
+  background: #4caf50;
+}
+
+.actions button.copy:hover {
+  background: #45a049;
+}
+
+.actions button.insert {
+  background: #2196f3;
+}
+
+.actions button.insert:hover {
+  background: #1976d2;
+}
+
+.actions button.delete {
+  background: #f44336;
+}
+
+.actions button.delete:hover {
+  background: #d32f2f;
+}
+
+.toast {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Modal styles */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+  background-color: #fefefe;
+  margin: 5% auto;
+  padding: 0;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid #ddd;
+  background-color: #f8f9fa;
+  border-radius: 8px 8px 0 0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.close {
+  color: #aaa;
+  font-size: 24px;
+  font-weight: bold;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.close:hover,
+.close:focus {
+  color: #000;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-body input,
+.modal-body textarea {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+
+.modal-body textarea {
+  resize: vertical;
+  min-height: 100px;
+  font-family: inherit;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 15px;
+}
+
+.modal-actions button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.modal-actions button#saveBtn {
+  background: #0066cc;
+  color: white;
+}
+
+.modal-actions button#saveBtn:hover {
+  background: #0052a3;
+}
+
+.modal-actions button#cancelBtn {
+  background: #6c757d;
+  color: white;
+}
+
+.modal-actions button#cancelBtn:hover {
+  background: #5a6268;
 }

@@ -1,4 +1,4 @@
-// background.js (service worker)
+// background.js (service worker) - Updated for persistent storage
 chrome.commands.onCommand.addListener((command) => {
     if (command !== 'insert-prompt') return;
   
@@ -56,4 +56,57 @@ chrome.commands.onCommand.addListener((command) => {
       });
     });
   });
+
+// Background sync functionality - simplified version that just manages local storage
+let syncInterval;
+
+// Start background sync when service worker starts
+async function startBackgroundSync() {
+  // Clear any existing interval
+  if (syncInterval) {
+    clearInterval(syncInterval);
+  }
+  
+  // Sync every 15 minutes in the background (just to keep the service worker alive)
+  syncInterval = setInterval(async () => {
+    try {
+      // Just check if we need to clean up old data or perform any maintenance
+      await performMaintenance();
+    } catch (error) {
+      console.error('Background maintenance failed:', error);
+    }
+  }, 15 * 60 * 1000); // 15 minutes
+}
+
+async function performMaintenance() {
+  try {
+    // Get cached prompts and last sync time
+    const result = await chrome.storage.local.get(['prompts', 'lastSync']);
+    const cachedPrompts = result.prompts || [];
+    const lastSync = result.lastSync || 0;
+    
+    // If we have prompts and it's been more than 24 hours since last sync, 
+    // we could potentially trigger a sync, but for now we'll just log
+    if (cachedPrompts.length > 0 && (Date.now() - lastSync) > 24 * 60 * 60 * 1000) {
+      console.log('Background maintenance: prompts cached for more than 24 hours');
+    }
+  } catch (error) {
+    console.error('Background maintenance error:', error);
+  }
+}
+
+// Start background sync when service worker initializes
+startBackgroundSync();
+
+// Handle extension installation/update
+chrome.runtime.onInstalled.addListener(() => {
+  console.log('Prompt Stash extension installed/updated');
+  startBackgroundSync();
+});
+
+// Handle extension startup
+chrome.runtime.onStartup.addListener(() => {
+  console.log('Prompt Stash extension started');
+  startBackgroundSync();
+});
   

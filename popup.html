@@ -3,28 +3,52 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="style.css" />
   <title>Prompt Stash</title>
 </head>
 <body>
   <div class="container">
     <h2>Prompt Stash</h2>
-
-    <div id="editor">
-      <input id="name" placeholder="Prompt name" />
-      <textarea id="text" rows="4" placeholder="Your prompt..."></textarea>
-      <input id="tags" placeholder="tags (comma separated)" />
-      <button id="saveBtn">Save prompt</button>
+    
+    <div id="auth-status" class="auth-status">
+      <div id="auth-loading">Connecting to Google Drive...</div>
+      <div id="auth-error" style="display: none;">Authentication failed. Please try again.</div>
+      <div id="auth-success" style="display: none;">Connected to Google Drive</div>
     </div>
 
     <div class="controls">
+      <button id="addPromptBtn">Add New Prompt</button>
       <button id="exportBtn">Export JSON</button>
-      <input id="importInput" type="file" accept=".json" />
+      <button id="refreshBtn">Refresh from Drive</button>
+    </div>
+
+    <div class="search-container">
+      <input id="searchInput" type="text" placeholder="Search prompts by name..." />
     </div>
 
     <div id="list"></div>
   </div>
 
+  <!-- Modal for adding new prompts -->
+  <div id="promptModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add New Prompt</h3>
+        <span class="close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <input id="name" placeholder="Prompt name" />
+        <textarea id="text" rows="4" placeholder="Your prompt..."></textarea>
+        <input id="tags" placeholder="tags (comma separated)" />
+        <div class="modal-actions">
+          <button id="saveBtn">Save prompt</button>
+          <button id="cancelBtn">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="drive-api.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
