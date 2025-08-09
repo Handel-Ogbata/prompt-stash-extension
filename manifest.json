@@ -1,0 +1,24 @@
+{
+    "manifest_version": 3,
+    "name": "Prompt Stash",
+    "version": "1.0",
+    "description": "Save, copy and insert your prompts quickly.",
+    "permissions": ["storage", "scripting", "activeTab", "contextMenus", "clipboardWrite"],
+    "background": {
+      "service_worker": "background.js"
+    },
+    "action": {
+      "default_popup": "popup.html",
+      "default_icon": {}
+    },
+    "host_permissions": ["<all_urls>"],
+    "commands": {
+      "insert-prompt": {
+        "suggested_key": {
+          "default": "Ctrl+Shift+Y"
+        },
+        "description": "Insert saved prompt into focused field"
+      }
+    }
+  }
+  

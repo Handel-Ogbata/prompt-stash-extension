@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>Prompt Stash</title>
+</head>
+<body>
+  <div class="container">
+    <h2>Prompt Stash</h2>
+
+    <div id="editor">
+      <input id="name" placeholder="Prompt name" />
+      <textarea id="text" rows="4" placeholder="Your prompt..."></textarea>
+      <input id="tags" placeholder="tags (comma separated)" />
+      <button id="saveBtn">Save prompt</button>
+    </div>
+
+    <div class="controls">
+      <button id="exportBtn">Export JSON</button>
+      <input id="importInput" type="file" accept=".json" />
+    </div>
+
+    <div id="list"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+body {
+  font-family: Arial, sans-serif;
+  width: 360px;
+  margin: 0;
+  padding: 10px;
+}
+.container h2 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+}
+#editor input,
+#editor textarea {
+  width: 100%;
+  margin-bottom: 6px;
+}
+#list .card {
+  border: 1px solid #ddd;
+  padding: 8px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+}
+.actions button {
+  margin-right: 6px;
+}
