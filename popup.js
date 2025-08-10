@@ -3,6 +3,17 @@ let driveAPI;
 let currentPrompts = [];
 let isInitialized = false;
 
+// Constants
+const STORAGE_KEYS = {
+  PROMPTS: 'prompts',
+  LAST_SYNC: 'lastSync',
+  PENDING_INSERT: 'pendingInsert'
+};
+
+const SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const MAX_PROMPT_LENGTH = 10000;
+const MAX_NAME_LENGTH = 200;
+
 document.addEventListener('DOMContentLoaded', () => {
   initializeApp();
   bindUI();
@@ -75,10 +86,10 @@ async function initializeDriveAPI() {
 
 async function loadFromStorage() {
   return new Promise((resolve) => {
-    chrome.storage.local.get(['prompts', 'lastSync'], (result) => {
-      if (result.prompts) {
-        console.log('Loaded prompts from storage:', result.prompts.length);
-        resolve(result.prompts);
+    chrome.storage.local.get([STORAGE_KEYS.PROMPTS], (result) => {
+      if (result[STORAGE_KEYS.PROMPTS]) {
+        console.log('Loaded prompts from storage:', result[STORAGE_KEYS.PROMPTS].length);
+        resolve(result[STORAGE_KEYS.PROMPTS]);
       } else {
         resolve([]);
       }
@@ -89,8 +100,8 @@ async function loadFromStorage() {
 async function saveToStorage(prompts) {
   return new Promise((resolve) => {
     chrome.storage.local.set({
-      prompts: prompts,
-      lastSync: Date.now()
+      [STORAGE_KEYS.PROMPTS]: prompts,
+      [STORAGE_KEYS.LAST_SYNC]: Date.now()
     }, () => {
       console.log('Saved prompts to storage:', prompts.length);
       resolve();
@@ -132,16 +143,15 @@ function mergePrompts(cachedPrompts, drivePrompts) {
 
 function setupBackgroundSync() {
   // Only sync if we have a driveAPI instance and it's been more than 5 minutes since last sync
-  const lastSync = Date.now();
   const syncInterval = setInterval(async () => {
     if (!driveAPI) return;
     
     try {
       // Check if it's been more than 5 minutes since last sync
-      const result = await chrome.storage.local.get(['lastSync']);
-      const timeSinceLastSync = Date.now() - (result.lastSync || 0);
+      const result = await chrome.storage.local.get([STORAGE_KEYS.LAST_SYNC]);
+      const timeSinceLastSync = Date.now() - (result[STORAGE_KEYS.LAST_SYNC] || 0);
       
-      if (timeSinceLastSync > 5 * 60 * 1000) { // 5 minutes
+      if (timeSinceLastSync > SYNC_INTERVAL) {
         const drivePrompts = await driveAPI.getPrompts();
         if (drivePrompts && drivePrompts.length > 0) {
           const mergedPrompts = mergePrompts(currentPrompts, drivePrompts);
@@ -156,7 +166,7 @@ function setupBackgroundSync() {
     } catch (error) {
       console.error('Background sync failed:', error);
     }
-  }, 5 * 60 * 1000); // Check every 5 minutes
+  }, SYNC_INTERVAL);
   
   // Clean up interval when popup closes
   window.addEventListener('beforeunload', () => {
@@ -165,30 +175,58 @@ function setupBackgroundSync() {
 }
 
 function bindUI() {
-  document.getElementById('addPromptBtn').addEventListener('click', openModal);
-  document.getElementById('saveBtn').addEventListener('click', savePrompt);
-  document.getElementById('cancelBtn').addEventListener('click', closeModal);
-  document.getElementById('exportBtn').addEventListener('click', exportPrompts);
-  document.getElementById('refreshBtn').addEventListener('click', refreshPrompts);
-  document.getElementById('list').addEventListener('click', listClickHandler);
+  // Form submission
+  const promptForm = document.getElementById('promptForm');
+  if (promptForm) {
+    promptForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      savePrompt();
+    });
+  }
+
+  // Button event listeners
+  document.getElementById('addPromptBtn')?.addEventListener('click', openModal);
+  document.getElementById('saveBtn')?.addEventListener('click', savePrompt);
+  document.getElementById('cancelBtn')?.addEventListener('click', closeModal);
+  document.getElementById('exportBtn')?.addEventListener('click', exportPrompts);
+  document.getElementById('refreshBtn')?.addEventListener('click', refreshPrompts);
+  document.getElementById('list')?.addEventListener('click', listClickHandler);
   
   // Search functionality
-  document.getElementById('searchInput').addEventListener('input', handleSearch);
+  const searchInput = document.getElementById('searchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', debounce(handleSearch, 300));
+  }
   
   // Close modal when clicking on X or outside the modal
-  document.querySelector('.close').addEventListener('click', closeModal);
-  document.getElementById('promptModal').addEventListener('click', (e) => {
-    if (e.target === document.getElementById('promptModal')) {
-      closeModal();
-    }
-  });
+  document.querySelector('.close')?.addEventListener('click', closeModal);
+  const modal = document.getElementById('promptModal');
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        closeModal();
+      }
+    });
+  }
   
   // Close modal with Escape key
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && document.getElementById('promptModal').style.display === 'block') {
+    if (e.key === 'Escape' && modal?.style.display === 'block') {
       closeModal();
     }
   });
+}
+
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
 }
 
 function showAuthStatus(status) {
@@ -196,30 +234,47 @@ function showAuthStatus(status) {
   const errorEl = document.getElementById('auth-error');
   const successEl = document.getElementById('auth-success');
   
-  loadingEl.style.display = status === 'loading' ? 'block' : 'none';
-  errorEl.style.display = status === 'error' ? 'block' : 'none';
-  successEl.style.display = status === 'success' ? 'block' : 'none';
+  if (loadingEl) loadingEl.style.display = status === 'loading' ? 'block' : 'none';
+  if (errorEl) errorEl.style.display = status === 'error' ? 'block' : 'none';
+  if (successEl) successEl.style.display = status === 'success' ? 'block' : 'none';
 }
 
 function openModal() {
-  document.getElementById('promptModal').style.display = 'block';
-  // Focus on the first input
-  document.getElementById('name').focus();
+  const modal = document.getElementById('promptModal');
+  if (modal) {
+    modal.style.display = 'block';
+    modal.setAttribute('aria-hidden', 'false');
+    // Focus on the first input
+    const nameInput = document.getElementById('name');
+    if (nameInput) {
+      nameInput.focus();
+    }
+  }
 }
 
 function closeModal() {
-  document.getElementById('promptModal').style.display = 'none';
-  // Clear the form
-  document.getElementById('name').value = '';
-  document.getElementById('text').value = '';
-  document.getElementById('tags').value = '';
+  const modal = document.getElementById('promptModal');
+  if (modal) {
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+    // Clear the form
+    const form = document.getElementById('promptForm');
+    if (form) {
+      form.reset();
+    }
+  }
 }
 
 function handleSearch() {
-  const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+  const searchInput = document.getElementById('searchInput');
+  if (!searchInput) return;
+  
+  const searchTerm = searchInput.value.toLowerCase().trim();
   const filteredPrompts = searchTerm 
     ? currentPrompts.filter(prompt => 
-        prompt.name.toLowerCase().includes(searchTerm)
+        prompt.name.toLowerCase().includes(searchTerm) ||
+        prompt.text.toLowerCase().includes(searchTerm) ||
+        (prompt.tags && prompt.tags.some(tag => tag.toLowerCase().includes(searchTerm)))
       )
     : currentPrompts;
   
@@ -254,18 +309,48 @@ async function loadPrompts() {
   }
 }
 
-async function savePrompt() {
-  const name = document.getElementById('name').value.trim();
-  const text = document.getElementById('text').value;
-  const tags = (document.getElementById('tags').value || '').split(',').map(s => s.trim()).filter(Boolean);
-
+function validatePrompt(name, text) {
   if (!name || !text) {
-    alert('Please provide name and prompt text');
+    return 'Please provide both name and prompt text';
+  }
+  
+  if (name.length > MAX_NAME_LENGTH) {
+    return `Name must be less than ${MAX_NAME_LENGTH} characters`;
+  }
+  
+  if (text.length > MAX_PROMPT_LENGTH) {
+    return `Prompt text must be less than ${MAX_PROMPT_LENGTH} characters`;
+  }
+  
+  return null;
+}
+
+async function savePrompt() {
+  const nameInput = document.getElementById('name');
+  const textInput = document.getElementById('text');
+  const tagsInput = document.getElementById('tags');
+  
+  if (!nameInput || !textInput) return;
+  
+  const name = nameInput.value.trim();
+  const text = textInput.value.trim();
+  const tags = (tagsInput?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+
+  const validationError = validatePrompt(name, text);
+  if (validationError) {
+    showToast(validationError);
     return;
   }
 
   try {
-    const newPrompt = { id: Date.now(), name, text, tags };
+    const newPrompt = { 
+      id: Date.now(), 
+      name, 
+      text, 
+      tags,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
     
     // Add to local storage first for immediate feedback
     currentPrompts.unshift(newPrompt);
@@ -295,29 +380,81 @@ async function savePrompt() {
 
 function renderList(prompts) {
   const container = document.getElementById('list');
-  const searchTerm = document.getElementById('searchInput').value.trim();
+  if (!container) return;
+  
+  const searchInput = document.getElementById('searchInput');
+  const searchTerm = searchInput?.value.trim() || '';
   
   if (!prompts.length) {
     if (searchTerm) {
-      container.innerHTML = '<small>No prompts found matching "' + escapeHtml(searchTerm) + '"</small>';
+      container.innerHTML = `<div class="empty-state"><p>No prompts found matching "${escapeHtml(searchTerm)}"</p></div>`;
     } else {
-      container.innerHTML = '<small>No prompts saved yet</small>';
+      container.innerHTML = `<div class="empty-state"><p>No prompts saved yet</p><p>Click "Add New Prompt" to get started</p></div>`;
     }
     return;
   }
   
   container.innerHTML = prompts.map(p => `
     <div class="card" data-id="${p.id}">
-      <strong>${escapeHtml(p.name)}</strong>
-      <pre>${escapeHtml(p.text)}</pre>
-      ${p.tags && p.tags.length ? `<div class="tags">${p.tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
+      <div class="card-header">
+        <h3 class="card-title">${escapeHtml(p.name)}</h3>
+        <button class="card-expand" aria-label="Expand prompt content">
+          <svg class="expand-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6,9 12,15 18,9"></polyline>
+          </svg>
+        </button>
+      </div>
+      <div class="card-content" style="display: none;">
+        <pre>${escapeHtml(p.text)}</pre>
+        ${p.tags && p.tags.length ? `<div class="tags">${p.tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
+      </div>
       <div class="actions">
-        <button class="copy">Copy</button>
-        <button class="insert">Insert</button>
-        <button class="delete">Delete</button>
+        <button class="copy" aria-label="Copy prompt">
+          <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          Copy
+        </button>
+        <button class="insert" aria-label="Insert prompt">
+          <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+          Insert
+        </button>
+        <button class="delete" aria-label="Delete prompt">
+          <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3,6 5,6 21,6"></polyline>
+            <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+            <line x1="10" y1="11" x2="10" y2="17"></line>
+            <line x1="14" y1="11" x2="14" y2="17"></line>
+          </svg>
+          Delete
+        </button>
       </div>
     </div>
   `).join('');
+  
+  // Add event listeners for expand/collapse functionality
+  container.querySelectorAll('.card-expand').forEach(button => {
+    button.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const card = button.closest('.card');
+      const content = card.querySelector('.card-content');
+      const icon = button.querySelector('.expand-icon');
+      
+      if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.classList.remove('expand-icon-collapsed');
+        button.setAttribute('aria-label', 'Collapse prompt content');
+      } else {
+        content.style.display = 'none';
+        icon.classList.add('expand-icon-collapsed');
+        button.setAttribute('aria-label', 'Expand prompt content');
+      }
+    });
+  });
 }
 
 async function listClickHandler(e) {
@@ -328,10 +465,33 @@ async function listClickHandler(e) {
   const prompt = currentPrompts.find(x => x.id === id);
   if (!prompt) return;
 
+  // Handle expand/collapse click
+  if (e.target.closest('.card-expand')) {
+    return; // This is handled separately in renderList
+  }
+
+  // Handle card header click to expand/collapse
+  if (e.target.closest('.card-header') && !e.target.closest('.card-expand')) {
+    const content = card.querySelector('.card-content');
+    const button = card.querySelector('.card-expand');
+    const icon = button.querySelector('.expand-icon');
+    
+    if (content.style.display === 'none') {
+      content.style.display = 'block';
+      icon.classList.remove('expand-icon-collapsed');
+      button.setAttribute('aria-label', 'Collapse prompt content');
+    } else {
+      content.style.display = 'none';
+      icon.classList.add('expand-icon-collapsed');
+      button.setAttribute('aria-label', 'Expand prompt content');
+    }
+    return;
+  }
+
   if (e.target.classList.contains('copy')) {
-    copyText(prompt.text);
+    await copyText(prompt.text);
   } else if (e.target.classList.contains('insert')) {
-    setPendingInsert(prompt.text);
+    await setPendingInsert(prompt.text);
   } else if (e.target.classList.contains('delete')) {
     if (confirm('Are you sure you want to delete this prompt?')) {
       try {
@@ -360,170 +520,180 @@ async function listClickHandler(e) {
   }
 }
 
-function copyText(text) {
-  navigator.clipboard?.writeText(text).then(() => {
-    showToast('Copied to clipboard');
-  }).catch(() => {
-    // fallback
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    ta.remove();
-    showToast('Copied to clipboard (fallback)');
-  });
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      showToast('Copied to clipboard');
+    } else {
+      // Fallback for older browsers
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'absolute';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      showToast('Copied to clipboard (fallback)');
+    }
+  } catch (error) {
+    console.error('Failed to copy text:', error);
+    showToast('Failed to copy to clipboard');
+  }
 }
 
-function setPendingInsert(text) {
+async function setPendingInsert(text) {
   // Close the popup first
   window.close();
   
   // Execute the insertion in the active tab
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     const tab = tabs && tabs[0];
     if (!tab) {
       return;
     }
     
-    chrome.scripting.executeScript({
+    await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: (insertText) => {
-        // Enhanced insertion logic
-        function tryInsert(targetEl) {
-          if (!targetEl) return false;
-          
-          // Handle contenteditable elements
-          if (targetEl.isContentEditable) {
-            targetEl.focus();
-            // Insert at cursor position or append to existing content
-            if (window.getSelection && window.getSelection().rangeCount > 0) {
-              const selection = window.getSelection();
-              const range = selection.getRangeAt(0);
-              range.deleteContents();
-              range.insertNode(document.createTextNode(insertText));
-              range.collapse(false);
-              selection.removeAllRanges();
-              selection.addRange(range);
-            } else {
-              targetEl.innerText = (targetEl.innerText || '') + insertText;
-            }
-            return true;
-          }
-          
-          // Handle input and textarea elements
-          if ('value' in targetEl) {
-            targetEl.focus();
-            const start = targetEl.selectionStart || 0;
-            const end = targetEl.selectionEnd || 0;
-            const currentValue = targetEl.value || '';
-            
-            // Insert at cursor position or append
-            const newValue = currentValue.substring(0, start) + insertText + currentValue.substring(end);
-            targetEl.value = newValue;
-            
-            // Set cursor position after inserted text
-            targetEl.selectionStart = targetEl.selectionEnd = start + insertText.length;
-            
-            // Trigger input event for React/Vue components
-            targetEl.dispatchEvent(new Event('input', { bubbles: true }));
-            targetEl.dispatchEvent(new Event('change', { bubbles: true }));
-            return true;
-          }
-          
-          return false;
-        }
-        
-        // Try to insert into the currently focused element first
-        const activeElement = document.activeElement;
-        if (activeElement && tryInsert(activeElement)) {
-          return { success: true, method: 'active-element' };
-        }
-        
-        // Look for common input selectors in order of preference
-        const selectors = [
-          // AI Chat applications
-          'textarea[placeholder*="chat"], textarea[placeholder*="message"], textarea[placeholder*="prompt"]',
-          'div[contenteditable="true"][placeholder*="chat"], div[contenteditable="true"][placeholder*="message"]',
-          'input[placeholder*="chat"], input[placeholder*="message"], input[placeholder*="prompt"]',
-          
-          // Document editors
-          'div[contenteditable="true"]',
-          'textarea',
-          'input[type="text"], input[type="search"]',
-          
-          // Generic contenteditable
-          '[contenteditable="true"]'
-        ];
-        
-        for (const selector of selectors) {
-          const elements = document.querySelectorAll(selector);
-          for (const element of elements) {
-            // Check if element is visible and not disabled
-            if (element.offsetParent !== null && !element.disabled && !element.readOnly) {
-              if (tryInsert(element)) {
-                return { success: true, method: 'selector', selector };
-              }
-            }
-          }
-        }
-        
-        // Last resort: copy to clipboard
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(insertText).then(() => {
-            // Show a notification that text was copied
-            const notification = document.createElement('div');
-            notification.style.cssText = `
-              position: fixed;
-              top: 20px;
-              right: 20px;
-              background: #4CAF50;
-              color: white;
-              padding: 12px 20px;
-              border-radius: 4px;
-              z-index: 10000;
-              font-family: Arial, sans-serif;
-              font-size: 14px;
-              box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            `;
-            notification.textContent = 'Prompt copied to clipboard!';
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-              if (notification.parentNode) {
-                notification.parentNode.removeChild(notification);
-              }
-            }, 3000);
-          }).catch(() => {
-            alert('Prompt copied to clipboard. Please paste it manually.');
-          });
-        } else {
-          alert('Prompt copied to clipboard. Please paste it manually.');
-        }
-        
-        return { success: false, method: 'clipboard' };
-      },
+      func: insertTextIntoPage,
       args: [text]
-    }).catch((error) => {
-      console.error('Failed to insert prompt:', error);
     });
-  });
+  } catch (error) {
+    console.error('Failed to insert prompt:', error);
+    showToast('Failed to insert prompt');
+  }
+}
+
+// Function to be injected into the page
+function insertTextIntoPage(insertText) {
+  function tryInsert(targetEl) {
+    if (!targetEl) return false;
+    
+    // Handle contenteditable elements
+    if (targetEl.isContentEditable) {
+      targetEl.focus();
+      if (window.getSelection && window.getSelection().rangeCount > 0) {
+        const selection = window.getSelection();
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(document.createTextNode(insertText));
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      } else {
+        targetEl.innerText = (targetEl.innerText || '') + insertText;
+      }
+      return true;
+    }
+    
+    // Handle input and textarea elements
+    if ('value' in targetEl) {
+      targetEl.focus();
+      const start = targetEl.selectionStart || 0;
+      const end = targetEl.selectionEnd || 0;
+      const currentValue = targetEl.value || '';
+      
+      const newValue = currentValue.substring(0, start) + insertText + currentValue.substring(end);
+      targetEl.value = newValue;
+      
+      targetEl.selectionStart = targetEl.selectionEnd = start + insertText.length;
+      
+      // Trigger input event for React/Vue components
+      targetEl.dispatchEvent(new Event('input', { bubbles: true }));
+      targetEl.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    }
+    
+    return false;
+  }
+  
+  // Try to insert into the currently focused element first
+  const activeElement = document.activeElement;
+  if (activeElement && tryInsert(activeElement)) {
+    return { success: true, method: 'active-element' };
+  }
+  
+  // Look for common input selectors
+  const selectors = [
+    'textarea[placeholder*="chat"], textarea[placeholder*="message"], textarea[placeholder*="prompt"]',
+    'div[contenteditable="true"][placeholder*="chat"], div[contenteditable="true"][placeholder*="message"]',
+    'input[placeholder*="chat"], input[placeholder*="message"], input[placeholder*="prompt"]',
+    'div[contenteditable="true"]',
+    'textarea',
+    'input[type="text"], input[type="search"]',
+    '[contenteditable="true"]'
+  ];
+  
+  for (const selector of selectors) {
+    const elements = document.querySelectorAll(selector);
+    for (const element of elements) {
+      if (element.offsetParent !== null && !element.disabled && !element.readOnly) {
+        if (tryInsert(element)) {
+          return { success: true, method: 'selector', selector };
+        }
+      }
+    }
+  }
+  
+  // Last resort: copy to clipboard
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(insertText).then(() => {
+      const notification = document.createElement('div');
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #4CAF50;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 4px;
+        z-index: 10000;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      `;
+      notification.textContent = 'Prompt copied to clipboard!';
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 3000);
+    }).catch(() => {
+      alert('Prompt copied to clipboard. Please paste it manually.');
+    });
+  } else {
+    alert('Prompt copied to clipboard. Please paste it manually.');
+  }
+  
+  return { success: false, method: 'clipboard' };
 }
 
 async function exportPrompts() {
-  const blob = new Blob([JSON.stringify(currentPrompts, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'prompts.json';
-  a.click();
-  URL.revokeObjectURL(url);
-  showToast('Prompts exported');
+  try {
+    const blob = new Blob([JSON.stringify(currentPrompts, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `prompts-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Prompts exported successfully');
+  } catch (error) {
+    console.error('Failed to export prompts:', error);
+    showToast('Failed to export prompts');
+  }
 }
 
 async function refreshPrompts() {
   // Clear search when refreshing
-  document.getElementById('searchInput').value = '';
+  const searchInput = document.getElementById('searchInput');
+  if (searchInput) {
+    searchInput.value = '';
+  }
   
   if (!driveAPI) {
     showToast('Google Drive not available. Using cached prompts.');
@@ -534,23 +704,20 @@ async function refreshPrompts() {
 }
 
 function showToast(msg) {
-  // Create a simple toast notification
+  // Remove existing toasts
+  const existingToasts = document.querySelectorAll('.toast');
+  existingToasts.forEach(toast => toast.remove());
+  
+  // Create a new toast notification
   const toast = document.createElement('div');
   toast.className = 'toast';
   toast.textContent = msg;
-  toast.style.cssText = `
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    background: #333;
-    color: white;
-    padding: 10px 15px;
-    border-radius: 4px;
-    z-index: 1000;
-    font-size: 12px;
-  `;
+  toast.setAttribute('role', 'alert');
+  toast.setAttribute('aria-live', 'assertive');
   
   document.body.appendChild(toast);
+  
+  // Auto-remove after 3 seconds
   setTimeout(() => {
     if (toast.parentNode) {
       toast.parentNode.removeChild(toast);
@@ -559,5 +726,7 @@ function showToast(msg) {
 }
 
 function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[s]);
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
